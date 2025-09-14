@@ -9,5 +9,19 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    host: true,
+    allowedHosts: [
+      'chat-auth-app-tunnel-97nsrw27.devinapps.com'
+    ],
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: false,
+        secure: false,
+        ws: true,
+      },
+    },
+  }
 })
 
