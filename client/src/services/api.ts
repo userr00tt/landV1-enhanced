@@ -64,11 +64,16 @@ export const authService = {
 
 export const chatService = {
   async sendMessage(messages: Array<{ role: string; content: string }>) {
-    const response = await fetch(`${API_URL}/api/chat/chat`, {
+    const token = authToken || authService.getToken();
+    const { protocol, hostname, port } = window.location;
+    const origin = port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
+    const endpoint = `${origin}/api/chat/chat`;
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken || authService.getToken()}`,
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ messages, stream: true }),
     });
@@ -80,9 +85,7 @@ export const chatService = {
         const error = await response.json();
         code = error?.error?.code;
         message = error?.error?.message;
-      } catch (_) {
-        // ignore JSON parse errors
-      }
+      } catch (_) {}
       const finalMessage = code
         ? `${code}:${message || 'Request failed'}`
         : `HTTP_${response.status}:${response.statusText || 'Request failed'}`;
@@ -95,8 +98,19 @@ export const chatService = {
 
 export const userService = {
   async getUsage() {
-    const response = await api.get('/user/usage');
-    return response.data;
+    const token = authService.getToken();
+    if (!token) {
+      throw new Error('NO_TOKEN');
+    }
+    try {
+      const response = await api.get('/user/usage');
+      return response.data;
+    } catch (err: any) {
+      if (err?.response?.status === 401) {
+        authService.logout();
+      }
+      throw err;
+    }
   },
 
   async getMessages(conversationId?: string, limit = 20) {
