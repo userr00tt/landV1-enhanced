@@ -9,14 +9,20 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
+    console.warn('Auth middleware: missing Authorization header');
     return res.status(401).json({ error: { code: 'UNAUTHORIZED', message: 'Access token required' } });
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || '') as any;
+    const secret = process.env.JWT_SECRET || '';
+    if (!secret) {
+      console.error('Auth middleware: JWT_SECRET not set');
+    }
+    const decoded = jwt.verify(token, secret) as any;
     req.user = { id: decoded.telegramId, username: decoded.username };
     next();
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Auth middleware: token verify failed:', error?.message || String(error));
     return res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Invalid access token' } });
   }
 }
