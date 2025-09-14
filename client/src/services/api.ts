@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:8000';
+const isDev = typeof window !== 'undefined' && (import.meta as any).env?.DEV;
+const API_URL = isDev ? '' : ((import.meta as any).env.VITE_API_URL || 'http://localhost:8000');
 
 const api = axios.create({
   baseURL: `${API_URL}/api`,

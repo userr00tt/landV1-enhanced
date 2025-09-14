@@ -13,6 +13,19 @@ export class OpenAIService {
     this.maxOutputTokens = parseInt(process.env.MODEL_MAX_OUTPUT_TOKENS || '700');
   }
 
+  private trimContext(messages: ChatMessage[], targetInputTokens: number): ChatMessage[] {
+    const reversed = [...messages].reverse();
+    const result: ChatMessage[] = [];
+    let total = 0;
+    for (const m of reversed) {
+      const t = estimateTokens(m.content);
+      if (total + t > targetInputTokens) break;
+      result.push(m);
+      total += t;
+    }
+    return result.reverse();
+  }
+
   async *streamChat(messages: ChatMessage[], maxTokens?: number): AsyncGenerator<string, void, unknown> {
     const useMock = process.env.OPENAI_USE_MOCK === '1' || !this.apiKey;
     if (useMock) {

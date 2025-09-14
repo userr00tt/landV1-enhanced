@@ -57,7 +57,7 @@ export async function authenticateWebApp(req: Request, res: Response) {
     const token = jwt.sign(
       { telegramId, username },
       process.env.JWT_SECRET || '',
-      { expiresIn: '5m' }
+      { expiresIn: '15m', algorithm: 'HS256' }
     );
 
     res.json({
