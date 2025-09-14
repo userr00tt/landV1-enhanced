@@ -43,7 +43,8 @@ export const authService = {
   async login(initData: string) {
     const response = await api.post('/auth/login', { initData });
     authToken = response.data.token;
-    localStorage.setItem('auth_token', authToken!);
+    try { localStorage.setItem('auth_token', authToken!); } catch {}
+    console.debug('[authService.login] received token?', !!authToken, 'len=', (authToken || '').length);
     return response.data;
   },
 
@@ -102,15 +103,23 @@ export const userService = {
     if (!token) {
       throw new Error('NO_TOKEN');
     }
-    try {
-      const response = await api.get('/user/usage');
-      return response.data;
-    } catch (err: any) {
-      if (err?.response?.status === 401) {
-        authService.logout();
+    const { protocol, hostname, port } = window.location;
+    const origin = port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
+    const endpoint = `${origin}/api/user/usage`;
+    const resp = await fetch(endpoint, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json'
       }
-      throw err;
+    });
+    if (resp.status === 401) {
+      authService.logout();
+      throw new Error('UNAUTHORIZED');
     }
+    if (!resp.ok) {
+      throw new Error(`HTTP_${resp.status}:${resp.statusText}`);
+    }
+    return await resp.json();
   },
 
   async getMessages(conversationId?: string, limit = 20) {
