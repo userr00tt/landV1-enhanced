@@ -8,7 +8,6 @@ import { UsageIndicator } from './components/UsageIndicator';
 import { SettingsSheet } from './components/SettingsSheet';
 import { useTelegram } from './hooks/useTelegram';
 import { authService, chatService, userService } from './services/api';
-const cryptoRandomId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? (crypto as any).randomUUID() : Math.random().toString(36).slice(2));
 
 interface Message {
   id: string;
