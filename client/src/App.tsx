@@ -84,6 +84,7 @@ function App() {
       if (res?.token) {
         authService.setToken(res.token);
       }
+      console.debug('[App] login ok, token in storage?', !!localStorage.getItem('auth_token'));
       setIsAuthenticated(true);
       await loadUsage(true);
     } catch (error: any) {
@@ -95,6 +96,7 @@ function App() {
   const loadUsage = async (allowRetry = false) => {
     try {
       const usageData = await userService.getUsage();
+      console.debug('[App] usage loaded', usageData);
       setUsage(usageData);
     } catch (error: any) {
       const msg = String(error?.message || '');
