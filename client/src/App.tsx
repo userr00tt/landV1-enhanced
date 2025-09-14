@@ -80,20 +80,36 @@ function App() {
   const authenticateUser = async () => {
     try {
       setAuthError(null);
-      await authService.login(webApp!.initData);
+      const res = await authService.login(webApp!.initData);
+      if (res?.token) {
+        authService.setToken(res.token);
+      }
       setIsAuthenticated(true);
-      await loadUsage();
+      await loadUsage(true);
     } catch (error: any) {
       console.error('Authentication failed:', error);
       setAuthError(error.response?.data?.error?.message || 'Authentication failed');
     }
   };
 
-  const loadUsage = async () => {
+  const loadUsage = async (allowRetry = false) => {
     try {
       const usageData = await userService.getUsage();
       setUsage(usageData);
-    } catch (error) {
+    } catch (error: any) {
+      const msg = String(error?.message || '');
+      const status = (error?.response?.status as number) || 0;
+      if (allowRetry || msg === 'NO_TOKEN' || status === 401) {
+        try {
+          const relog = await authService.login(webApp!.initData);
+          if (relog?.token) authService.setToken(relog.token);
+          const usageData = await userService.getUsage();
+          setUsage(usageData);
+          return;
+        } catch (e) {
+          console.error('Retry login/usage failed:', e);
+        }
+      }
       console.error('Failed to load usage:', error);
     }
   };
