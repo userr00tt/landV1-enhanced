@@ -28,8 +28,12 @@ router.post('/chat', authenticateToken, chatRateLimit, async (req: Authenticated
     }
 
     const openaiService = new OpenAIService();
-    const inputTokens = openaiService.estimateInputTokens(messages);
-    const estimatedTotalTokens = inputTokens + parseInt(process.env.MODEL_MAX_OUTPUT_TOKENS || '700');
+    const maxOutputTokens = parseInt(process.env.MODEL_MAX_OUTPUT_TOKENS || '700');
+    const targetInputTokens = parseInt(process.env.MODEL_MAX_INPUT_TOKENS || '3000');
+    const trimFn = (openaiService as any).trimContext?.bind(openaiService);
+    const trimmedMessages: ChatMessage[] = typeof trimFn === 'function' ? trimFn(messages, targetInputTokens) : messages;
+    const inputTokens = openaiService.estimateInputTokens(trimmedMessages);
+    const estimatedTotalTokens = inputTokens + maxOutputTokens;
 
     const bypassQuota = process.env.BYPASS_QUOTA === '1';
     if (!bypassQuota && (user.tokensUsedToday + estimatedTotalTokens > user.dailyTokenLimit)) {
@@ -41,7 +45,7 @@ router.post('/chat', authenticateToken, chatRateLimit, async (req: Authenticated
       });
     }
 
-    const userMessage = messages[messages.length - 1];
+    const userMessage = trimmedMessages[trimmedMessages.length - 1];
     await DatabaseService.saveMessage(userId, userMessage.role, userMessage.content, estimateTokens(userMessage.content));
 
     if (stream) {
@@ -61,7 +65,7 @@ router.post('/chat', authenticateToken, chatRateLimit, async (req: Authenticated
       let outputTokens = 0;
 
       try {
-        for await (const chunk of openaiService.streamChat(messages)) {
+        for await (const chunk of openaiService.streamChat(trimmedMessages, maxOutputTokens)) {
           assistantResponse += chunk;
           outputTokens = estimateTokens(assistantResponse);
           

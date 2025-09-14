@@ -41,7 +41,11 @@ app.use(generalRateLimit);
   const has = (k: string) => !!process.env[k];
   if (!has('BOT_TOKEN')) errs.push('BOT_TOKEN missing');
   if (!has('JWT_SECRET')) errs.push('JWT_SECRET missing');
-  else if ((process.env.JWT_SECRET || '').length < 16) warns.push('JWT_SECRET is weak (<16 chars)');
+  else {
+    const len = (process.env.JWT_SECRET || '').length;
+    if (len < 16) warns.push('JWT_SECRET is weak (<16 chars)');
+    if (strict && len < 24) errs.push('JWT_SECRET too short for production (<24 chars)');
+  }
   if (!has('ORIGIN')) errs.push('ORIGIN missing');
   const useMock = process.env.OPENAI_USE_MOCK === '1';
   if (!useMock && !has('OPENAI_API_KEY')) errs.push('OPENAI_API_KEY missing (OPENAI_USE_MOCK!=1)');

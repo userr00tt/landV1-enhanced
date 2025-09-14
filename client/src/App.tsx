@@ -8,10 +8,13 @@ import { UsageIndicator } from './components/UsageIndicator';
 import { SettingsSheet } from './components/SettingsSheet';
 import { useTelegram } from './hooks/useTelegram';
 import { authService, chatService, userService } from './services/api';
+const cryptoRandomId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? (crypto as any).randomUUID() : Math.random().toString(36).slice(2));
 
 interface Message {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
+  createdAt: number;
 }
 
 interface UsageInfo {
@@ -99,16 +102,18 @@ function App() {
   const handleSendMessage = async (content: string) => {
     if (!isAuthenticated || isLoading) return;
 
-    const userMessage: Message = { role: 'user', content };
-    const newMessages = [...messages, userMessage];
+    const userMessage: Message = { id: cryptoRandomId(), role: 'user', content, createdAt: Date.now() };
+    const newMessages = [...messages, userMessage].sort((a, b) => a.createdAt - b.createdAt);
     setMessages(newMessages);
     setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages: newMessages } : c));
     setIsLoading(true);
     setIsStreaming(true);
     setStreamingMessage('');
 
+    const currentConversationId = activeConversationId;
+
     try {
-      const response = await chatService.sendMessage(newMessages);
+      const response = await chatService.sendMessage(newMessages.map(({ role, content }) => ({ role, content })));
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
 
@@ -126,42 +131,44 @@ function App() {
         const lines = chunk.split('\n');
 
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === 'chunk' && parsed.content) {
+              assistantContent += parsed.content;
+              if (currentConversationId === activeConversationId) {
+                setStreamingMessage(assistantContent);
+              }
+            } else if (parsed.type === 'limit_reached') {
               setIsStreaming(false);
+              const assistantMsg: Message = { id: cryptoRandomId(), role: 'assistant', content: assistantContent, createdAt: Date.now() };
               setMessages(prev => {
-                const updated: Message[] = [...prev, { role: 'assistant' as 'assistant', content: assistantContent }];
-                setConversations(cs => cs.map(c => c.id === activeConversationId ? { ...c, messages: updated } : c));
+                const updated: Message[] = [...prev, assistantMsg];
+                setConversations(cs => cs.map(c => c.id === currentConversationId ? { ...c, messages: updated } : c));
                 return updated;
               });
               setStreamingMessage('');
+              showAlert('Daily token limit reached. Please upgrade your plan.');
               await loadUsage();
               return;
+            } else if (parsed.type === 'done') {
+              const assistantMsg: Message = { id: cryptoRandomId(), role: 'assistant', content: assistantContent, createdAt: Date.now() };
+              setMessages(prev => {
+                const updated: Message[] = [...prev, assistantMsg];
+                setConversations(cs => cs.map(c => c.id === currentConversationId ? { ...c, messages: updated } : c));
+                return updated;
+              });
+              setStreamingMessage('');
+              setIsStreaming(false);
+              await loadUsage();
+              return;
+            } else if (parsed.type === 'error') {
+              throw new Error(`STREAM_ERROR:${parsed.message || 'Unknown streaming error'}`);
             }
-
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.type === 'chunk' && parsed.content) {
-                assistantContent += parsed.content;
-                setStreamingMessage(assistantContent);
-              } else if (parsed.type === 'limit_reached') {
-                setIsStreaming(false);
-                setMessages(prev => {
-                  const updated: Message[] = [...prev, { role: 'assistant' as 'assistant', content: assistantContent }];
-                  setConversations(cs => cs.map(c => c.id === activeConversationId ? { ...c, messages: updated } : c));
-                  return updated;
-                });
-                setStreamingMessage('');
-                showAlert('Daily token limit reached. Please upgrade your plan.');
-                await loadUsage();
-                return;
-              } else if (parsed.type === 'error') {
-                throw new Error(`STREAM_ERROR:${parsed.message || 'Unknown streaming error'}`);
-              }
-            } catch (parseError) {
-              continue;
-            }
+          } catch {
+            continue;
           }
         }
       }
@@ -176,7 +183,6 @@ function App() {
       } else if (message.includes('RATE_LIMIT')) {
         showAlert('Too many requests. Please wait before trying again.');
       } else if (message.startsWith('HTTP_')) {
-        // HTTP_XXX:StatusText or code:message
         showAlert(message.replace(/^HTTP_/, 'HTTP '));
       } else if (message.startsWith('STREAM_ERROR:')) {
         showAlert(message.replace('STREAM_ERROR:', 'Stream error: '));
@@ -190,10 +196,10 @@ function App() {
 
   if (!isReady) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
         <div className="text-center">
-          <Bot className="w-12 h-12 mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-600 dark:text-gray-400">Loading Telegram Mini App...</p>
+          <Bot className="w-12 h-12 mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading Telegram Mini App...</p>
         </div>
       </div>
     );
@@ -201,7 +207,7 @@ function App() {
 
   if (authError) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
+      <div className="flex items-center justify-center min-h-screen bg-background text-foreground p-4">
         <Alert className="max-w-md">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
@@ -222,10 +228,10 @@ function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
         <div className="text-center">
-          <Bot className="w-12 h-12 mx-auto mb-4 text-blue-500 animate-pulse" />
-          <p className="text-gray-600 dark:text-gray-400">Authenticating...</p>
+          <Bot className="w-12 h-12 mx-auto mb-4 text-primary animate-pulse" />
+          <p className="text-muted-foreground">Authenticating...</p>
         </div>
       </div>
     );
@@ -265,11 +271,10 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border-b">
+    <div className="flex flex-col h-screen bg-background text-foreground">
+      <div className="flex items-center justify-between p-4 bg-card border-b border-border">
         <div className="flex items-center gap-3">
-          <Bot className="w-6 h-6 text-blue-500" />
+          <Bot className="w-6 h-6 text-primary" />
           <h1 className="font-semibold text-lg">AI Chat</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -300,17 +305,17 @@ function App() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="text-center py-12">
-            <Bot className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+            <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
             <h2 className="text-xl font-semibold mb-2">Welcome to AI Chat!</h2>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+            <p className="text-muted-foreground max-w-md mx-auto">
               Start a conversation with our AI assistant. Ask questions, get help, or just chat!
             </p>
           </div>
         )}
         
-        {messages.map((message, index) => (
+        {messages.map((message) => (
           <ChatMessage
-            key={index}
+            key={message.id}
             role={message.role}
             content={message.content}
           />

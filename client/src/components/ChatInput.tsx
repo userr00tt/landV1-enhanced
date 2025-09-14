@@ -39,7 +39,7 @@ export const ChatInput = ({ onSendMessage, disabled, isLoading }: ChatInputProps
   };
 
   return (
-    <div className="flex gap-2 p-4 border-t bg-white dark:bg-gray-900">
+    <div className="flex gap-2 p-4 border-t border-border bg-card">
       <Textarea
         ref={textareaRef}
         value={message}

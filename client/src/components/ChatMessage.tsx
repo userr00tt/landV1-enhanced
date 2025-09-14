@@ -19,15 +19,15 @@ export const ChatMessage = ({ role, content, isStreaming }: ChatMessageProps) =>
       className={cn(
         'flex gap-3 p-4 rounded-lg',
         isUser 
-          ? 'bg-blue-500 text-white ml-8' 
-          : 'bg-gray-100 dark:bg-gray-800 mr-8'
+          ? 'bg-primary text-primary-foreground ml-8' 
+          : 'bg-muted text-foreground mr-8'
       )}
     >
       <div className={cn(
         'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center',
         isUser 
-          ? 'bg-blue-600' 
-          : 'bg-gray-200 dark:bg-gray-700'
+          ? 'bg-primary/80 text-primary-foreground' 
+          : 'bg-accent text-accent-foreground'
       )}>
         {isUser ? (
           <User className="w-4 h-4" />
