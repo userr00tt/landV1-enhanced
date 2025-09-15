@@ -1,6 +1,8 @@
 import { setupI18n } from './i18n';
 import { useState, useEffect, useRef } from 'react';
 import { Bot, AlertCircle, Menu } from 'lucide-react';
+import { useSwipeable } from 'react-swipeable';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatMessage } from './components/ChatMessage';
@@ -337,57 +339,67 @@ function App() {
         <div className="w-5" />
       </div>
 
-      {activeTab === 'chat' ? (
-        <>
-          {usage && (
-            <UsageIndicator
-              tokensUsed={usage.tokensUsedToday}
-              tokenLimit={usage.dailyTokenLimit}
-              plan={usage.plan}
-            />
-          )}
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 && (
-              <div className="text-center py-12">
-                <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                <h2 className="text-xl font-semibold mb-2">Welcome to AI Chat!</h2>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                  Start a conversation with our AI assistant. Ask questions, get help, or just chat!
-                </p>
+      {(() => {
+        const handlers = useSwipeable({
+          onSwipedLeft: () => setActiveTab('companion'),
+          onSwipedRight: () => setActiveTab('chat'),
+          trackMouse: true
+        });
+        return (
+          <div {...handlers} className="flex-1 overflow-hidden">
+            <motion.div
+              className="flex h-full"
+              animate={{ x: activeTab === 'chat' ? '0%' : '-100%' }}
+              transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+              style={{ width: '200%' }}
+            >
+              <div className="w-full shrink-0 overflow-hidden">
+                {usage && (
+                  <UsageIndicator
+                    tokensUsed={usage.tokensUsedToday}
+                    tokenLimit={usage.dailyTokenLimit}
+                    plan={usage.plan}
+                  />
+                )}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {messages.length === 0 && (
+                    <div className="text-center py-12">
+                      <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                      <h2 className="text-xl font-semibold mb-2">Welcome to AI Chat!</h2>
+                      <p className="text-muted-foreground max-w-md mx-auto">
+                        Start a conversation with our AI assistant. Ask questions, get help, or just chat!
+                      </p>
+                    </div>
+                  )}
+                  {messages.map((message) => (
+                    <ChatMessage
+                      key={message.id}
+                      role={message.role}
+                      content={message.content}
+                    />
+                  ))}
+                  {isStreaming && streamingMessage && (
+                    <ChatMessage
+                      role="assistant"
+                      content={streamingMessage}
+                      isStreaming={true}
+                    />
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+                <ChatInput
+                  onSendMessage={handleSendMessage}
+                  disabled={!isAuthenticated}
+                  isLoading={isLoading}
+                />
               </div>
-            )}
-            
-            {messages.map((message) => (
-              <ChatMessage
-                key={message.id}
-                role={message.role}
-                content={message.content}
-              />
-            ))}
-            
-            {isStreaming && streamingMessage && (
-              <ChatMessage
-                role="assistant"
-                content={streamingMessage}
-                isStreaming={true}
-              />
-            )}
-            
-            <div ref={messagesEndRef} />
+              <div className="w-full shrink-0 overflow-auto">
+                <CompanionScreen value={companionRole} onChange={setCompanionRole} />
+              </div>
+            </motion.div>
           </div>
-
-          <ChatInput
-            onSendMessage={handleSendMessage}
-            disabled={!isAuthenticated}
-            isLoading={isLoading}
-          />
-        </>
-      ) : (
-        <div className="flex-1">
-          <CompanionScreen value={companionRole} onChange={setCompanionRole} />
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
