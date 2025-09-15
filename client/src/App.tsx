@@ -1,12 +1,17 @@
+import { setupI18n } from './i18n';
 import { useState, useEffect, useRef } from 'react';
-import { Bot, Settings, AlertCircle } from 'lucide-react';
+import { Bot, AlertCircle, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ChatMessage } from './components/ChatMessage';
+
 import { ChatInput } from './components/ChatInput';
 import { UsageIndicator } from './components/UsageIndicator';
 import { SettingsSheet } from './components/SettingsSheet';
 import { useTelegram } from './hooks/useTelegram';
+import { useTranslation } from 'react-i18next';
+import CompanionScreen from './screens/CompanionScreen';
+
 import { authService, chatService, userService } from './services/api';
 
 interface Message {
@@ -24,6 +29,9 @@ interface UsageInfo {
 }
 
 function App() {
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'chat' | 'companion'>('chat');
+  const [companionRole, setCompanionRole] = useState<'medic' | 'tarologist' | 'lawyer' | 'fitness' | undefined>(undefined);
   const [messages, setMessages] = useState<Message[]>([]);
   // Naive multi-conversation support (local only)
   type Conversation = { id: string; title: string; messages: Message[]; createdAt: number };
@@ -44,11 +52,20 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
+  const { webApp, isReady, showAlert } = useTelegram();
+
+  useEffect(() => {
+    try {
+      const lang = (webApp?.initDataUnsafe?.user?.language_code as string) || 'en';
+      setupI18n(lang);
+    } catch {
+      setupI18n('en');
+    }
+  }, [webApp]);
+
   const [streamingMessage, setStreamingMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
-  const { webApp, isReady, showAlert } = useTelegram();
   const authStartedRef = useRef(false);
 
   const scrollToBottom = () => {
@@ -290,71 +307,87 @@ function App() {
   return (
     <div className="flex flex-col h-screen bg-background text-foreground">
       <div className="flex items-center justify-between p-4 bg-card border-b border-border">
-        <div className="flex items-center gap-3">
-          <Bot className="w-6 h-6 text-primary" />
-          <h1 className="font-semibold text-lg">AI Chat</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <SettingsSheet 
-            conversations={conversations}
-            activeConversationId={activeConversationId}
-            onNewConversation={createConversation}
-            onSelectConversation={selectConversation}
-            onDeleteConversation={deleteConversation}
+        <SettingsSheet 
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onNewConversation={createConversation}
+          onSelectConversation={selectConversation}
+          onDeleteConversation={deleteConversation}
+        >
+          <Button variant="ghost" size="sm" aria-label="Menu">
+            <Menu className="w-5 h-5" />
+          </Button>
+        </SettingsSheet>
+
+        <div className="flex items-center gap-6">
+          <button
+            className={`text-sm ${activeTab==='chat' ? 'font-semibold underline' : 'text-muted-foreground'}`}
+            onClick={() => setActiveTab('chat')}
           >
-            <Button variant="ghost" size="sm">
-              <Settings className="w-4 h-4" />
-            </Button>
-          </SettingsSheet>
+            {t('nav.chat', 'Chat')}
+          </button>
+          <button
+            className={`text-sm ${activeTab==='companion' ? 'font-semibold underline' : 'text-muted-foreground'}`}
+            onClick={() => setActiveTab('companion')}
+          >
+            {t('nav.companion', 'Companion')}
+          </button>
         </div>
+
+        <div className="w-5" />
       </div>
 
-      {/* Usage Indicator */}
-      {usage && (
-        <UsageIndicator
-          tokensUsed={usage.tokensUsedToday}
-          tokenLimit={usage.dailyTokenLimit}
-          plan={usage.plan}
-        />
-      )}
+      {activeTab === 'chat' ? (
+        <>
+          {usage && (
+            <UsageIndicator
+              tokensUsed={usage.tokensUsedToday}
+              tokenLimit={usage.dailyTokenLimit}
+              plan={usage.plan}
+            />
+          )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="text-center py-12">
-            <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-xl font-semibold mb-2">Welcome to AI Chat!</h2>
-            <p className="text-muted-foreground max-w-md mx-auto">
-              Start a conversation with our AI assistant. Ask questions, get help, or just chat!
-            </p>
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.length === 0 && (
+              <div className="text-center py-12">
+                <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                <h2 className="text-xl font-semibold mb-2">Welcome to AI Chat!</h2>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  Start a conversation with our AI assistant. Ask questions, get help, or just chat!
+                </p>
+              </div>
+            )}
+            
+            {messages.map((message) => (
+              <ChatMessage
+                key={message.id}
+                role={message.role}
+                content={message.content}
+              />
+            ))}
+            
+            {isStreaming && streamingMessage && (
+              <ChatMessage
+                role="assistant"
+                content={streamingMessage}
+                isStreaming={true}
+              />
+            )}
+            
+            <div ref={messagesEndRef} />
           </div>
-        )}
-        
-        {messages.map((message) => (
-          <ChatMessage
-            key={message.id}
-            role={message.role}
-            content={message.content}
-          />
-        ))}
-        
-        {isStreaming && streamingMessage && (
-          <ChatMessage
-            role="assistant"
-            content={streamingMessage}
-            isStreaming={true}
-          />
-        )}
-        
-        <div ref={messagesEndRef} />
-      </div>
 
-      {/* Input */}
-      <ChatInput
-        onSendMessage={handleSendMessage}
-        disabled={!isAuthenticated}
-        isLoading={isLoading}
-      />
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            disabled={!isAuthenticated}
+            isLoading={isLoading}
+          />
+        </>
+      ) : (
+        <div className="flex-1">
+          <CompanionScreen value={companionRole} onChange={setCompanionRole} />
+        </div>
+      )}
     </div>
   );
 }
