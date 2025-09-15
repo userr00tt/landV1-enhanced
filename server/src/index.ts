@@ -24,12 +24,10 @@ app.use(generalRateLimit);
 
 // Diagnostics: confirm OpenAI env is wired (safe, truncated)
 (() => {
-  const key = process.env.OPENAI_API_KEY || '';
-  const model = process.env.OPENAI_MODEL || '';
-  if (key) {
-    console.log(`OpenAI: key=${key.slice(0, 6)}... len=${key.length}, model=${model}`);
-  } else {
-    console.log('OpenAI: key not set');
+  if (process.env.NODE_ENV !== 'production') {
+    const key = process.env.OPENAI_API_KEY || '';
+    const model = process.env.OPENAI_MODEL || '';
+    logger.info({ model, keyPresent: !!key }, 'OpenAI config (dev)');
   }
 })();
 
@@ -44,18 +42,18 @@ app.use(generalRateLimit);
   else {
     const len = (process.env.JWT_SECRET || '').length;
     if (len < 16) warns.push('JWT_SECRET is weak (<16 chars)');
-    if (strict && len < 24) errs.push('JWT_SECRET too short for production (<24 chars)');
+    if (strict && len < 32) errs.push('JWT_SECRET too short for production (<32 chars)');
   }
   if (!has('ORIGIN')) errs.push('ORIGIN missing');
   const useMock = process.env.OPENAI_USE_MOCK === '1';
   if (!useMock && !has('OPENAI_API_KEY')) errs.push('OPENAI_API_KEY missing (OPENAI_USE_MOCK!=1)');
   if (!has('WEBHOOK_SECRET')) warns.push('WEBHOOK_SECRET missing (payments webhook)');
   if (strict && errs.length) {
-    console.error('Environment validation failed:', errs.join('; '));
+    logger.error({ errs }, 'Environment validation failed');
     process.exit(1);
   }
-  if (errs.length) console.warn('Env warnings (non-strict):', errs.join('; '));
-  if (warns.length) console.warn('Env suggestions:', warns.join('; '));
+  if (errs.length) logger.warn({ errs }, 'Env warnings (non-strict)');
+  if (warns.length) logger.warn({ warns }, 'Env suggestions');
 })();
 
 app.use((req, res, next) => {
@@ -103,10 +101,9 @@ app.use((req, res) => {
 
 app.listen(PORT, () => {
   logger.info({ port: PORT }, 'Server started');
-  // Remove mock user if mock auth is disabled (safety cleanup)
   if (process.env.ALLOW_MOCK_AUTH !== '1') {
     DatabaseService.deleteUserCascade('123456789')
-      .then(() => console.log('Cleanup: removed mock user 123456789 (if existed)'))
+      .then(() => logger.info('Cleanup: removed mock user 123456789 (if existed)'))
       .catch(() => {});
   }
 });

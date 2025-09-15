@@ -29,11 +29,17 @@ export class OpenAIService {
   async *streamChat(messages: ChatMessage[], maxTokens?: number): AsyncGenerator<string, void, unknown> {
     const useMock = process.env.OPENAI_USE_MOCK === '1' || !this.apiKey;
     if (useMock) {
-      console.log('OpenAIService: Using MOCK streaming (set OPENAI_USE_MOCK=0 and provide OPENAI_API_KEY to use real API)');
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.log('OpenAIService: Using MOCK streaming');
+      }
       yield* this.createMockStreamGenerator(messages);
       return;
     }
-    console.log('OpenAIService: Using REAL OpenAI', this.model);
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.log('OpenAIService: Using REAL OpenAI');
+    }
     const response = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {

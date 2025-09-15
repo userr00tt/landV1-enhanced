@@ -44,7 +44,6 @@ export const authService = {
     const response = await api.post('/auth/login', { initData });
     authToken = response.data.token;
     try { localStorage.setItem('auth_token', authToken!); } catch {}
-    console.debug('[authService.login] received token?', !!authToken, 'len=', (authToken || '').length);
     return response.data;
   },
 

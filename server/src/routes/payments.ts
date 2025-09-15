@@ -1,9 +1,12 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
+import pino from 'pino';
 import { authenticateToken } from '../middleware/auth';
 import { DatabaseService } from '../services/database';
 import { AuthenticatedRequest } from '../types';
+
+const logger = pino();
 
 const router = Router();
 
@@ -12,7 +15,8 @@ const paymentSchema = z.object({
   description: z.string().min(1).max(255)
 });
 
-router.post('/create-invoice', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+import { paymentsRateLimit } from '../middleware/security';
+router.post('/create-invoice', authenticateToken, paymentsRateLimit, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { amountStars, description } = paymentSchema.parse(req.body);
     const userId = req.user!.id;
@@ -33,8 +37,8 @@ router.post('/create-invoice', authenticateToken, async (req: AuthenticatedReque
       invoicePayload,
       invoiceUrl: `https://t.me/invoice/${payment.id}`
     });
-  } catch (error) {
-    console.error('Payment creation error:', error);
+  } catch (error: any) {
+    logger.error({ err: error?.message }, 'Payment creation error');
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid payment data' } });
     }
@@ -76,8 +80,8 @@ router.post('/webhook', async (req, res) => {
     }
 
     res.json({ ok: true });
-  } catch (error) {
-    console.error('Webhook error:', error);
+  } catch (error: any) {
+    logger.error({ err: error?.message }, 'Webhook error');
     res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Webhook processing failed' } });
   }
 });
