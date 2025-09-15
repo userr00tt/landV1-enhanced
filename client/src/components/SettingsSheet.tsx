@@ -6,6 +6,8 @@ import { Separator } from '@/components/ui/separator';
 import { useTelegram } from '../hooks/useTelegram';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
 
 interface Conversation {
   id: string;
@@ -25,6 +27,8 @@ interface SettingsSheetProps {
 
 export const SettingsSheet = ({ children, conversations, activeConversationId, onNewConversation, onSelectConversation, onDeleteConversation }: SettingsSheetProps) => {
   const { colorScheme, user, setTheme } = useTelegram();
+  const { t } = useTranslation();
+  const currentLang = i18n.language || 'en';
 
   return (
     <Sheet>
@@ -53,6 +57,17 @@ export const SettingsSheet = ({ children, conversations, activeConversationId, o
               <div className="flex items-center justify-between pt-2">
                 <Label htmlFor="theme-switch" className="text-gray-600">Dark theme</Label>
                 <Switch id="theme-switch" checked={colorScheme === 'dark'} onCheckedChange={(v) => setTheme(v ? 'dark' : 'light')} />
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-gray-600">{t('settings.language', 'Language')}</span>
+                <div className="flex gap-2">
+                  <Button size="sm" variant={currentLang.startsWith('ru') ? 'default' : 'outline'} onClick={() => i18n.changeLanguage('ru')}>
+                    {t('settings.russian', 'Русский')}
+                  </Button>
+                  <Button size="sm" variant={currentLang.startsWith('en') ? 'default' : 'outline'} onClick={() => i18n.changeLanguage('en')}>
+                    {t('settings.english', 'English')}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

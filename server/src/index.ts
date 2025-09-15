@@ -9,6 +9,7 @@ import authRoutes from './routes/auth';
 import chatRoutes from './routes/chat';
 import userRoutes from './routes/user';
 import paymentRoutes from './routes/payments';
+import conversationsRoutes from './routes/conversations';
 
 const app = express();
 const trustProxy = process.env.TRUST_PROXY || 'loopback';
@@ -73,6 +74,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/conversations', conversationsRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

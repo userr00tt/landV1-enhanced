@@ -63,7 +63,7 @@ export const authService = {
 };
 
 export const chatService = {
-  async sendMessage(messages: Array<{ role: string; content: string }>) {
+  async sendMessage(conversationId: string, messages: Array<{ role: string; content: string }>, companionRole?: string) {
     const token = authToken || authService.getToken();
     const { protocol, hostname, port } = window.location;
     const origin = port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
@@ -75,7 +75,7 @@ export const chatService = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ messages, stream: true }),
+      body: JSON.stringify({ conversationId, messages, companionRole, stream: true }),
     });
 
     if (!response.ok) {
@@ -119,13 +119,25 @@ export const userService = {
       throw new Error(`HTTP_${resp.status}:${resp.statusText}`);
     }
     return await resp.json();
-  },
+  }
+};
 
-  async getMessages(conversationId?: string, limit = 20) {
-    const response = await api.get('/user/messages', {
-      params: { conversationId, limit }
-    });
-    return response.data;
+export const conversationsService = {
+  async list() {
+    const resp = await api.get('/conversations');
+    return resp.data?.conversations || [];
+  },
+  async create(title?: string) {
+    const resp = await api.post('/conversations', { title });
+    return resp.data?.conversation;
+  },
+  async remove(id: string) {
+    const resp = await api.delete(`/conversations/${id}`);
+    return resp.data?.ok === true;
+  },
+  async messages(conversationId: string, limit = 50) {
+    const resp = await api.get(`/conversations/${conversationId}/messages`, { params: { limit } });
+    return resp.data?.messages || [];
   }
 };
 

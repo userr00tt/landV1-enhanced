@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { encrypt, decrypt } from '../utils/crypto';
 
 const prisma = new PrismaClient();
 
@@ -22,6 +23,67 @@ export class DatabaseService {
         creditsStars: 0,
         lastResetAt: new Date()
       }
+    });
+  }
+
+  private static async ensureDefaultConversation(userId: string) {
+    const existing = await prisma.conversation.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'asc' }
+    });
+    if (existing) return existing;
+    return await prisma.conversation.create({
+      data: { userId, title: 'Default' }
+    });
+  }
+
+  static async createConversation(userId: string, title?: string) {
+    return await prisma.conversation.create({
+      data: { userId, title }
+    });
+  }
+
+  static async listConversations(userId: string) {
+    return await prisma.conversation.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  static async deleteConversation(userId: string, conversationId: string) {
+    const conv = await prisma.conversation.findFirst({ where: { id: conversationId, userId } });
+    if (!conv) return false;
+    await prisma.message.deleteMany({ where: { conversationId, userId } });
+    await prisma.conversation.delete({ where: { id: conversationId } });
+    return true;
+  }
+
+  static async addMessage(userId: string, conversationId: string, role: string, contentPlain: string, tokens: number) {
+    const { ciphertext, iv, authTag } = encrypt(contentPlain);
+    return await prisma.message.create({
+      data: {
+        userId,
+        conversationId,
+        role,
+        contentEnc: Buffer.concat([ciphertext, authTag]),
+        iv,
+        tokens
+      }
+    });
+  }
+
+  static async getMessagesDecrypted(userId: string, conversationId: string, limit = 50) {
+    const rows = await prisma.message.findMany({
+      where: { userId, conversationId },
+      orderBy: { createdAt: 'asc' },
+      take: limit
+    });
+    return rows.map((m) => {
+      const buf = Buffer.from(m.contentEnc);
+      const ciphertext = buf.subarray(0, buf.length - 16);
+      const authTag = buf.subarray(buf.length - 16);
+      const content = decrypt(ciphertext, Buffer.from(m.iv), authTag);
+      return { id: m.id, role: m.role, content, createdAt: m.createdAt };
     });
   }
 
@@ -92,25 +154,39 @@ export class DatabaseService {
   }
 
   static async saveMessage(telegramId: string, role: string, content: string, tokens: number, conversationId?: string) {
+    const conv = conversationId
+      ? await prisma.conversation.findFirst({ where: { id: conversationId, userId: telegramId } })
+      : await this.ensureDefaultConversation(telegramId);
+    if (!conv) throw new Error('Conversation not found or does not belong to user');
+    const { ciphertext, iv, authTag } = encrypt(content);
     return await prisma.message.create({
       data: {
         userId: telegramId,
+        conversationId: conv.id,
         role,
-        content,
-        tokens,
-        conversationId
+        contentEnc: Buffer.concat([ciphertext, authTag]),
+        iv,
+        tokens
       }
     });
   }
 
   static async getUserMessages(telegramId: string, conversationId?: string, limit = 20) {
-    return await prisma.message.findMany({
-      where: {
-        userId: telegramId,
-        ...(conversationId && { conversationId })
-      },
+    const conv = conversationId
+      ? await prisma.conversation.findFirst({ where: { id: conversationId, userId: telegramId } })
+      : await this.ensureDefaultConversation(telegramId);
+    if (!conv) return [];
+    const rows = await prisma.message.findMany({
+      where: { userId: telegramId, conversationId: conv.id },
       orderBy: { createdAt: 'desc' },
       take: limit
+    });
+    return rows.map((m) => {
+      const buf = Buffer.from(m.contentEnc);
+      const ciphertext = buf.subarray(0, buf.length - 16);
+      const authTag = buf.subarray(buf.length - 16);
+      const content = decrypt(ciphertext, Buffer.from(m.iv), authTag);
+      return { id: m.id, role: m.role, content, createdAt: m.createdAt, conversationId: m.conversationId };
     });
   }
 

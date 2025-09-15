@@ -13,16 +13,18 @@ const logger = pino();
 const router = Router();
 
 const chatSchema = z.object({
+  conversationId: z.string().uuid(),
   messages: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string().min(1).max(4000)
   })).min(1).max(20),
-  stream: z.boolean().optional().default(true)
+  stream: z.boolean().optional().default(true),
+  companionRole: z.string().optional()
 });
 
 router.post('/chat', authenticateToken, chatRateLimit, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { messages, stream } = chatSchema.parse(req.body);
+    const { conversationId, messages, stream, companionRole } = chatSchema.parse(req.body);
     const userId = req.user!.id;
 
     const user = await DatabaseService.getUser(userId);
@@ -30,11 +32,18 @@ router.post('/chat', authenticateToken, chatRateLimit, async (req: Authenticated
       return res.status(404).json({ error: { code: 'USER_NOT_FOUND', message: 'User not found' } });
     }
 
+    const conv = await DatabaseService.listConversations(userId).then(list => list.find((c: any) => c.id === conversationId));
+    if (!conv) {
+      return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'Conversation not accessible' } });
+    }
+
     const openaiService = new OpenAIService();
     const maxOutputTokens = parseInt(process.env.MODEL_MAX_OUTPUT_TOKENS || '700');
     const targetInputTokens = parseInt(process.env.MODEL_MAX_INPUT_TOKENS || '3000');
     const trimFn = (openaiService as any).trimContext?.bind(openaiService);
-    const trimmedMessages: ChatMessage[] = typeof trimFn === 'function' ? trimFn(messages, targetInputTokens) : messages;
+    const sysPreface: ChatMessage[] = companionRole ? [{ role: 'assistant', content: `Role: ${companionRole}` }] as any : [];
+    const toTrim: ChatMessage[] = [...sysPreface, ...messages] as any;
+    const trimmedMessages: ChatMessage[] = typeof trimFn === 'function' ? trimFn(toTrim, targetInputTokens) : toTrim;
     const inputTokens = openaiService.estimateInputTokens(trimmedMessages);
     const estimatedTotalTokens = inputTokens + maxOutputTokens;
 
@@ -48,8 +57,8 @@ router.post('/chat', authenticateToken, chatRateLimit, async (req: Authenticated
       });
     }
 
-    const userMessage = trimmedMessages[trimmedMessages.length - 1];
-    await DatabaseService.saveMessage(userId, userMessage.role, userMessage.content, estimateTokens(userMessage.content));
+    const userMessage = messages[messages.length - 1];
+    await DatabaseService.addMessage(userId, conversationId, userMessage.role, userMessage.content, estimateTokens(userMessage.content));
 
     if (stream) {
       const headers: Record<string, string> = {
@@ -57,7 +66,6 @@ router.post('/chat', authenticateToken, chatRateLimit, async (req: Authenticated
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive'
       };
-      // Do not fall back to '*'; rely on global CORS middleware
       if (process.env.ORIGIN) {
         headers['Access-Control-Allow-Origin'] = process.env.ORIGIN;
         headers['Vary'] = 'Origin';
@@ -80,7 +88,7 @@ router.post('/chat', authenticateToken, chatRateLimit, async (req: Authenticated
           res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
         }
 
-        await DatabaseService.saveMessage(userId, 'assistant', assistantResponse, outputTokens);
+        await DatabaseService.addMessage(userId, conversationId, 'assistant', assistantResponse, outputTokens);
         await DatabaseService.updateUserTokenUsage(userId, inputTokens + outputTokens);
 
         res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);

@@ -1,0 +1,25 @@
+{
+  "nav": {
+    "chat": "Chat",
+    "companion": "Companion"
+  },
+  "actions": {
+    "newChat": "New chat",
+    "send": "Send"
+  },
+  "companion": {
+    "title": "Choose a companion",
+    "medic": "Medic",
+    "tarologist": "Tarologist",
+    "lawyer": "Lawyer",
+    "fitness": "Fitness"
+  },
+  "input": {
+    "placeholder": "Type a message..."
+  },
+  "settings": {
+    "language": "Language",
+    "russian": "Russian",
+    "english": "English"
+  }
+}
