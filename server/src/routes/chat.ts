@@ -1,11 +1,14 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
+import pino from 'pino';
 import { authenticateToken } from '../middleware/auth';
 import { chatRateLimit } from '../middleware/security';
 import { OpenAIService } from '../services/openai';
 import { DatabaseService } from '../services/database';
 import { AuthenticatedRequest, ChatMessage } from '../types';
 import { estimateTokens } from '../utils/telegram';
+
+const logger = pino();
 
 const router = Router();
 
@@ -82,16 +85,18 @@ router.post('/chat', authenticateToken, chatRateLimit, async (req: Authenticated
 
         res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
         res.end();
-      } catch (error) {
-        console.error('Streaming error:', error);
+      } catch (error: any) {
+        const requestId = req.headers['x-request-id'];
+        logger.error({ requestId, err: error?.message }, 'Streaming error');
         res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to generate response' })}\n\n`);
         res.end();
       }
     } else {
       return res.status(400).json({ error: { code: 'NON_STREAM_NOT_SUPPORTED', message: 'Non-streaming mode not implemented' } });
     }
-  } catch (error) {
-    console.error('Chat error:', error);
+  } catch (error: any) {
+    const requestId = req.headers['x-request-id'];
+    logger.error({ requestId, err: error?.message }, 'Chat error');
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Invalid request data' } });
     }

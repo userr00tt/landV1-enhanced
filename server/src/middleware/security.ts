@@ -1,6 +1,9 @@
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import pino from 'pino';
+
+const logger = pino();
 
 export const securityMiddleware = helmet({
   contentSecurityPolicy: {
@@ -15,11 +18,13 @@ export const securityMiddleware = helmet({
       mediaSrc: ["'self'"],
       frameSrc: ["'none'"]
     }
-  }
+  },
+  hsts: process.env.NODE_ENV === 'production' ? { maxAge: 15552000, includeSubDomains: true, preload: false } : false,
+  referrerPolicy: { policy: 'no-referrer' }
 });
 
 const corsOrigin = process.env.ORIGIN || 'http://localhost:5173';
-console.log('CORS Origin configured as:', corsOrigin);
+if (process.env.NODE_ENV !== 'production') logger.info({ corsOrigin }, 'CORS origin configured');
 
 export const corsMiddleware = cors({
   origin: corsOrigin,
@@ -51,4 +56,12 @@ export const authRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true
+});
+
+export const paymentsRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { error: { code: 'PAYMENTS_RATE_LIMIT', message: 'Too many payment requests' } },
+  standardHeaders: true,
+  legacyHeaders: false
 });

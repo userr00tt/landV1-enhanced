@@ -1,3 +1,14 @@
+Security
+
+- Frontend never connects to the database directly. All data access goes through API services in client/src/services/api.ts.
+- Production builds strip console and debugger from client bundles via Vite esbuild drop.
+- Server returns user-friendly error messages and logs errors server-side.
+- Helmet enforces CSP and HSTS in production; referrerPolicy is set to no-referrer.
+- JWT and env validation: in production or ENFORCE_ENV=1, server validates presence of critical envs and exits on failure.
+- Rate limiting: auth, chat, and payments endpoints are protected with express-rate-limit.
+- CI security scanning: GitHub Actions runs npm audit for client and server. Optional Snyk/Checkmarx/Invicti can be added with org credentials.
+
+
 Local development with browser + mock auth
 
 Backend
