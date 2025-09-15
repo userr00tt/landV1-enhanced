@@ -12,7 +12,8 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: true,
     allowedHosts: [
-      'chat-auth-app-tunnel-97nsrw27.devinapps.com'
+      'chat-auth-app-tunnel-97nsrw27.devinapps.com',
+      'appsec-security-app-tunnel-l821wsns.devinapps.com'
     ],
     proxy: {
       '/api': {

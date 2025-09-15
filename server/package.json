@@ -6,6 +6,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
+    "dev:mock": "sh -c 'export NODE_ENV=development OPENAI_USE_MOCK=1 ENFORCE_ENV=0 CHAT_ENCRYPTION_KEY=$(node -e \"console.log(require(\\\"crypto\\\").randomBytes(32).toString(\\\"base64\\\"))\") && npm run db:generate && npm start'",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
