@@ -17,9 +17,10 @@ model User {
   lastResetAt     DateTime  @default(now())
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  
+
   payments        Payment[]
   messages        Message[]
+  conversations   Conversation[]
 }
 
 model Payment {
@@ -30,18 +31,32 @@ model Payment {
   status      String   @default("pending")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   user        User     @relation(fields: [userId], references: [id])
 }
 
+model Conversation {
+  id        String    @id @default(uuid())
+  userId    String
+  title     String?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+  messages  Message[]
+}
+
 model Message {
-  id             String   @id @default(cuid())
+  id             String   @id @default(uuid())
   userId         String
+  conversationId String
   role           String
-  content        String
+  contentEnc     Bytes
+  iv             Bytes
   tokens         Int      @default(0)
-  conversationId String?
   createdAt      DateTime @default(now())
-  
-  user           User     @relation(fields: [userId], references: [id])
+
+  user           User        @relation(fields: [userId], references: [id])
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([userId, conversationId, createdAt])
 }
