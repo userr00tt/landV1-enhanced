@@ -149,7 +149,7 @@ function App() {
     const currentConversationId = activeConversationId;
 
     try {
-      const response = await chatService.sendMessage(newMessages.map(({ role, content }) => ({ role, content })));
+      const response = await chatService.sendMessage(currentConversationId, newMessages.map(({ role, content }) => ({ role, content })), companionRole);
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
 
